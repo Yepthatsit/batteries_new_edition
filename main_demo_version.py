@@ -5,14 +5,14 @@ import time
 from serial.tools.list_ports import comports
 #################################   SET PARAMETERS HERE ###############################
 stabilization_mode = True 
-
+setponit_step = 2
 mesurment_delay = 2
 filename = ""
 ramp_rate = 0.2
 start_setpoint = 300
 source_voltage = 2
 end_setpoint = 70
-stabilization_time = 20
+stabilization_time = 20 #minutes
 #########################################################
 class qSerial(serial.Serial):
     def query(self,command:str,encoding:str = "utf-8",delay:int = 0.1) -> str:
@@ -55,7 +55,49 @@ def main() ->None:
             datafile.write("Temperature A,Temperatue B,Setpoint,pwr,Current,mnumber,Time\n")
             datafile.close()
     if stabilization_mode:
-        raise NotImplementedError
+        while (float(Lakeshore.query("KRDG? A\r\n")) <start_setpoint or float(Lakeshore.query("KRDG? B\r\n")) <start_setpoint):
+            print(Lakeshore.query("KRDG? A\r\n"),Lakeshore.query("KRDG? A\r\n"),Lakeshore.query("KRDG?  B\r\n"),Lakeshore.query("HTR? 1\r\n"))
+            time.sleep(1)
+        print("temp reached")
+        Setpoint = start_setpoint
+        while Setpoint >= end_setpoint:
+            Lakeshore.write(bytes("SETP 1,{}\r\n".format(Setpoint),'ascii'))
+            time.sleep(1)
+            helptime = time.time()
+            while time.time() - helptime <= stabilization_time*60:
+                pwr = Lakeshore.query("HTR? 1\r\n").replace("\r\n","")
+                Current = str(kithley.query(':MEAS:CURR?')).replace('\n','')
+                TemperatureA = float(Lakeshore.query('KRDG? A\r\n').replace("\r\n", ""))
+                TemperatureB = float(Lakeshore.query('KRDG? B\r\n').replace("\r\n",""))
+                msetp = Lakeshore.query("SETP?\r\n").replace("\r\n","")
+                Time = round(time.time() - start_time,2)
+                mnum+=1
+                dataline = f"{TemperatureA},{TemperatureB},{msetp},{pwr},{Current},{mnum},{Time}\n"
+                print(dataline)
+                datafile = open(filename,'a')
+                datafile.write(dataline)
+                datafile.close()
+                time.sleep(mesurment_delay)
+            Setpoint -= setponit_step
+        while Setpoint <= start_setpoint:
+            Lakeshore.write(bytes("SETP 1,{}\r\n".format(Setpoint)))
+            time.sleep(1)
+            helptime = time.time()
+            while time.time() - helptime <= stabilization_time*60:
+                pwr = Lakeshore.query("HTR? 1\r\n").replace("\r\n","")
+                Current = str(kithley.query(':MEAS:CURR?')).replace('\n','')
+                TemperatureA = float(Lakeshore.query('KRDG? A\r\n').replace("\r\n", ""))
+                TemperatureB = float(Lakeshore.query('KRDG? B\r\n').replace("\r\n",""))
+                msetp = Lakeshore.query("SETP?\r\n").replace("\r\n","")
+                Time = round(time.time() - start_time,2)
+                mnum+=1
+                dataline = f"{TemperatureA},{TemperatureB},{msetp},{pwr},{Current},{mnum},{Time}\n"
+                print(dataline)
+                datafile = open(filename,'a')
+                datafile.write(dataline)
+                datafile.close()
+                time.sleep(mesurment_delay)
+            Setpoint += setponit_step
     else:
         while (float(Lakeshore.query("KRDG? A\r\n")) <start_setpoint or float(Lakeshore.query("KRDG? B\r\n")) <start_setpoint):
             print(Lakeshore.query("KRDG? A\r\n"),Lakeshore.query("KRDG? A\r\n"),Lakeshore.query("KRDG?  B\r\n"),Lakeshore.query("HTR? 1\r\n"))
